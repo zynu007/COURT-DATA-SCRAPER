@@ -48,10 +48,8 @@ class DelhiHighCourtScraper:
         """
         form_fields = {}
         
-        try:
-            # Look for various possible selectors for each field
-            
-            # Case type field - usually a select dropdown
+        try:            
+            # Case type field - a select dropdown
             case_type_selectors = [
                 'select[name="case_type"]',
                 'select[name="caseType"]', 
@@ -65,7 +63,7 @@ class DelhiHighCourtScraper:
                     logger.info(f"Found case type field: {selector}")
                     break
             
-            # Case number field - usually an input
+            # Case number field
             case_number_selectors = [
                 'input[name="case_number"]',
                 'input[name="caseNumber"]',
@@ -241,7 +239,6 @@ class DelhiHighCourtScraper:
             logger.error(f"Error getting CSRF token: {str(e)}")
             return ""
         
-    # Replace your existing _extract_direct_pdf_from_case_page method with this improved version
 
     def _extract_direct_pdf_from_case_page(self, case_page_url: str) -> Optional[str]:
         """
@@ -319,8 +316,6 @@ class DelhiHighCourtScraper:
             logger.error(f"Error extracting PDF URL from {case_page_url}: {str(e)}")
             return None
                
-
-    # Replace your _extract_case_data_from_api method with this improved version
 
     def _extract_case_data_from_api(self, api_response: Dict) -> Dict:
         case_data = {

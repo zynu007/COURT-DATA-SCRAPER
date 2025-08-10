@@ -183,7 +183,6 @@ def create_app():
                 'error': 'Failed to fetch history',
                 'message': str(e)
             }), 500
-    # Add this new endpoint to your app.py
 
     @app.route('/api/extract-pdf-url', methods=['POST'])
     def extract_pdf_url():

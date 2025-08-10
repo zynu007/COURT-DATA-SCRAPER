@@ -213,7 +213,7 @@
                         </select>
                     </div>
                     
-                    <!-- Search Button -->
+                    <!-- Search button -->
                     <div class="md:col-span-3 flex justify-center space-x-4">
                         <button 
                             type="submit"
@@ -237,7 +237,7 @@
                     </div>
                 </form>
                 
-                <!-- Quick Test Cases -->
+                <!-- Quick test Cases -->
                 <div class="mt-6 p-4 bg-blue-50 rounded-lg">
                     <h3 class="text-sm font-medium text-blue-800 mb-2">Quick Test Cases:</h3>
                     <div class="flex flex-wrap gap-2">
@@ -563,6 +563,7 @@
                     return years;
                 },
                 
+
                 /**
                  * Load test case data
                  */
@@ -572,6 +573,7 @@
                     this.searchForm.filing_year = filingYear;
                 },
                 
+
                 /**
                  * Get manual case URL for official website
                  */
@@ -651,6 +653,7 @@
                 /**
                  * Search for case data
                  */
+
                 async searchCase() {
                     // Validate form
                     if (!this.searchForm.case_type || !this.searchForm.case_number || !this.searchForm.filing_year) {
@@ -700,8 +703,8 @@
                 },
                 
         
-                /* Download document by ID or direct URL - UPDATED VERSION */
-                /* Updated downloadDocument function - replace the existing one in your Vue.js code */
+                /* Download document direct URL */
+        
                 async downloadDocument(documentId, title, directUrl = null) {
                     try {
                         // Show loading state
