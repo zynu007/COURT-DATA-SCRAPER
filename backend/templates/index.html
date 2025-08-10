@@ -1,0 +1,930 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Court Data Fetcher | Delhi High Court</title>
+    
+    <!-- Import Vue.js 3 -->
+    <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
+    
+    <!-- Import Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    
+    <!-- Custom Tailwind Config -->
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        'court-blue': '#1e3a8a',
+                        'court-gold': '#f59e0b',
+                        'success-green': '#10b981',
+                        'error-red': '#ef4444'
+                    },
+                    animation: {
+                        'fade-in': 'fadeIn 0.5s ease-in-out',
+                        'slide-up': 'slideUp 0.6s ease-out',
+                        'pulse-soft': 'pulseSoft 2s cubic-bezier(0.4, 0, 0.6, 1) infinite',
+                        'bounce-subtle': 'bounceSubtle 1s ease-in-out infinite',
+                    },
+                    keyframes: {
+                        fadeIn: {
+                            '0%': { opacity: '0' },
+                            '100%': { opacity: '1' }
+                        },
+                        slideUp: {
+                            '0%': { transform: 'translateY(20px)', opacity: '0' },
+                            '100%': { transform: 'translateY(0)', opacity: '1' }
+                        },
+                        pulseSoft: {
+                            '0%, 100%': { opacity: '1' },
+                            '50%': { opacity: '0.7' }
+                        },
+                        bounceSubtle: {
+                            '0%, 100%': { transform: 'translateY(0)' },
+                            '50%': { transform: 'translateY(-5px)' }
+                        }
+                    }
+                }
+            }
+        }
+    </script>
+    
+    <!-- Icons (Lucide) -->
+    <script src="https://unpkg.com/lucide@latest/dist/umd/lucide.js"></script>
+    
+    <style>
+        /* Custom scrollbar */
+        ::-webkit-scrollbar {
+            width: 6px;
+        }
+        ::-webkit-scrollbar-track {
+            background: #f1f5f9;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #cbd5e1;
+            border-radius: 3px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: #94a3b8;
+        }
+        
+        /* Loading animation */
+        .loading-dots::after {
+            content: '';
+            animation: dots 1.5s infinite;
+        }
+        
+        @keyframes dots {
+            0%, 20% { content: ''; }
+            40% { content: '.'; }
+            60% { content: '..'; }
+            80%, 100% { content: '...'; }
+        }
+        
+        /* Glassmorphism effect */
+        .glass {
+            background: rgba(255, 255, 255, 0.25);
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.18);
+        }
+        
+        /* Gradient backgrounds */
+        .gradient-bg {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        }
+        
+        .court-gradient {
+            background: linear-gradient(135deg, #1e3a8a 0%, #3730a3 100%);
+        }
+        
+        /* Custom button hover effects */
+        .btn-download {
+            transition: all 0.3s ease;
+        }
+        
+        .btn-download:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 25px rgba(30, 58, 138, 0.3);
+        }
+        
+        /* Status indicator animations */
+        .status-indicator {
+            animation: pulse 2s infinite;
+        }
+        
+        /* Custom toast styles */
+        .toast {
+            backdrop-filter: blur(10px);
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2);
+        }
+    </style>
+</head>
+<body class="bg-gray-50 min-h-screen">
+    <div id="app">
+        <!-- Header -->
+        <header class="court-gradient shadow-lg">
+            <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+                <div class="flex justify-between items-center py-6">
+                    <div class="flex items-center space-x-3">
+                        <div class="bg-white p-2 rounded-lg">
+                            <i data-lucide="scale" class="w-8 h-8 text-court-blue"></i>
+                        </div>
+                        <div>
+                            <h1 class="text-2xl font-bold text-white">Court Data Fetcher</h1>
+                            <p class="text-blue-100 text-sm">Delhi High Court Case Search Portal</p>
+                        </div>
+                    </div>
+                    
+                    <!-- Stats Badge -->
+                    <div v-if="stats" class="hidden sm:flex items-center space-x-4 text-white">
+                        <div class="text-center">
+                            <div class="text-2xl font-bold">[[ stats.total_queries ]]</div>
+                            <div class="text-xs text-blue-100">Total Queries</div>
+                        </div>
+                        <div class="text-center">
+                            <div class="text-2xl font-bold">[[ stats.success_rate ]]%</div>
+                            <div class="text-xs text-blue-100">Success Rate</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </header>
+
+        <!-- Main Content -->
+        <main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+            <!-- Search Form -->
+            <div class="bg-white rounded-xl shadow-lg p-6 mb-8 animate-slide-up">
+                <h2 class="text-xl font-semibold text-gray-800 mb-6 flex items-center">
+                    <i data-lucide="search" class="w-5 h-5 mr-2 text-court-blue"></i>
+                    Search Case Details
+                </h2>
+                
+                <form @submit.prevent="searchCase" class="grid grid-cols-1 md:grid-cols-3 gap-6">
+                    <!-- Case Type Dropdown -->
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-2">
+                            Case Type <span class="text-red-500">*</span>
+                        </label>
+                        <select 
+                            v-model="searchForm.case_type"
+                            class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-court-blue focus:border-transparent transition-all duration-200"
+                            :disabled="loading"
+                            required
+                        >
+                            <option value="">Select Case Type</option>
+                            <option v-for="type in caseTypes" :key="type.value" :value="type.value">
+                                [[ type.label ]]
+                            </option>
+                        </select>
+                    </div>
+                    
+                    <!-- Case Number -->
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-2">
+                            Case Number <span class="text-red-500">*</span>
+                        </label>
+                        <input 
+                            type="text" 
+                            v-model="searchForm.case_number"
+                            placeholder="e.g., 798"
+                            class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-court-blue focus:border-transparent transition-all duration-200"
+                            :disabled="loading"
+                            required
+                        >
+                    </div>
+                    
+                    <!-- Filing Year -->
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-2">
+                            Filing Year <span class="text-red-500">*</span>
+                        </label>
+                        <select 
+                            v-model="searchForm.filing_year"
+                            class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-court-blue focus:border-transparent transition-all duration-200"
+                            :disabled="loading"
+                            required
+                        >
+                            <option value="">Select Year</option>
+                            <option v-for="year in availableYears" :key="year" :value="year">
+                                [[ year ]]
+                            </option>
+                        </select>
+                    </div>
+                    
+                    <!-- Search Button -->
+                    <div class="md:col-span-3 flex justify-center space-x-4">
+                        <button 
+                            type="submit"
+                            :disabled="loading || !isFormValid"
+                            class="bg-court-blue hover:bg-blue-800 text-white px-8 py-3 rounded-lg font-medium transition-all duration-200 transform hover:scale-105 disabled:opacity-50 disabled:cursor-not-allowed flex items-center space-x-2"
+                        >
+                            <i data-lucide="search" class="w-5 h-5"></i>
+                            <span v-if="!loading">Search Case</span>
+                            <span v-else class="loading-dots">Searching</span>
+                        </button>
+                        
+                        <button 
+                            type="button"
+                            @click="clearForm"
+                            :disabled="loading"
+                            class="bg-gray-500 hover:bg-gray-600 text-white px-6 py-3 rounded-lg font-medium transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed flex items-center space-x-2"
+                        >
+                            <i data-lucide="x" class="w-5 h-5"></i>
+                            <span>Clear</span>
+                        </button>
+                    </div>
+                </form>
+                
+                <!-- Quick Test Cases -->
+                <div class="mt-6 p-4 bg-blue-50 rounded-lg">
+                    <h3 class="text-sm font-medium text-blue-800 mb-2">Quick Test Cases:</h3>
+                    <div class="flex flex-wrap gap-2">
+                        <button 
+                            @click="loadTestCase('CRL.A.', '798', 2025)"
+                            class="px-3 py-1 bg-blue-100 text-blue-800 rounded text-sm hover:bg-blue-200 transition-colors"
+                        >
+                            CRL.A. 798/2025
+                        </button>
+                        <button 
+                            @click="loadTestCase('BAIL APPLN.', '1626', 2025)"
+                            class="px-3 py-1 bg-blue-100 text-blue-800 rounded text-sm hover:bg-blue-200 transition-colors"
+                        >
+                            BAIL APPLN. 1626/2025
+                        </button>
+                        <button 
+                            @click="loadTestCase('CWP', '1234', 2024)"
+                            class="px-3 py-1 bg-blue-100 text-blue-800 rounded text-sm hover:bg-blue-200 transition-colors"
+                        >
+                            CWP 1234/2024
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Loading State -->
+            <div v-if="loading" class="bg-white rounded-xl shadow-lg p-8 mb-8 text-center animate-fade-in">
+                <div class="animate-pulse-soft">
+                    <i data-lucide="loader-2" class="w-12 h-12 text-court-blue mx-auto mb-4 animate-spin"></i>
+                    <h3 class="text-lg font-medium text-gray-800 mb-2">Fetching Case Data</h3>
+                    <p class="text-gray-600">Please wait while we retrieve information from Delhi High Court...</p>
+                    <div class="mt-4 bg-gray-200 rounded-full h-2">
+                        <div class="bg-court-blue h-2 rounded-full animate-pulse" style="width: 60%"></div>
+                    </div>
+                    <p class="text-sm text-gray-500 mt-2">This may take up to 60 seconds due to CAPTCHA processing</p>
+                </div>
+            </div>
+
+            <!-- Error Message -->
+            <div v-if="error" class="bg-red-50 border border-red-200 rounded-xl p-6 mb-8 animate-fade-in">
+                <div class="flex items-start">
+                    <i data-lucide="alert-circle" class="w-6 h-6 text-red-500 mr-3 mt-0.5"></i>
+                    <div class="flex-1">
+                        <h3 class="text-lg font-medium text-red-800">Search Failed</h3>
+                        <p class="text-red-700 mt-1">[[ error ]]</p>
+                        <div class="mt-4 space-y-2">
+                            <p class="text-sm text-red-600">Troubleshooting tips:</p>
+                            <ul class="text-sm text-red-600 list-disc list-inside space-y-1">
+                                <li>Verify the case number and year are correct</li>
+                                <li>Try using the exact case type format (e.g., "CRL.A." for Criminal Appeal)</li>
+                                <li>Check if the court website is accessible</li>
+                                <li>Wait a few minutes and try again</li>
+                            </ul>
+                        </div>
+                        <button 
+                            @click="error = null"
+                            class="mt-3 text-sm text-red-600 hover:text-red-800 underline"
+                        >
+                            Dismiss
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Case Results -->
+            <div v-if="caseData" class="space-y-6 animate-slide-up">
+                <!-- Case Information Card -->
+                <div class="bg-white rounded-xl shadow-lg overflow-hidden">
+                    <div class="bg-gradient-to-r from-court-blue to-blue-600 px-6 py-4">
+                        <h3 class="text-xl font-semibold text-white flex items-center">
+                            <i data-lucide="file-text" class="w-6 h-6 mr-2"></i>
+                            Case Information
+                        </h3>
+                        <p class="text-blue-100 mt-1" v-if="caseData.cached">
+                            <i data-lucide="database" class="w-4 h-4 inline mr-1"></i>
+                            Retrieved from cache
+                        </p>
+                    </div>
+                    
+                    <div class="p-6">
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                            <div class="space-y-4">
+                                <div>
+                                    <label class="text-sm font-medium text-gray-500 uppercase tracking-wide">Case Details</label>
+                                    <p class="text-lg text-gray-800 mt-1 font-semibold">
+                                        [[ caseData.case_type ]] [[ caseData.case_number ]]/[[ caseData.filing_year ]]
+                                    </p>
+                                </div>
+                                
+                                <div v-if="caseData.parties_names">
+                                    <label class="text-sm font-medium text-gray-500 uppercase tracking-wide">Parties</label>
+                                    <p class="text-gray-800 mt-1">[[ caseData.parties_names ]]</p>
+                                </div>
+                            </div>
+                            
+                            <div class="space-y-4">
+                                <div v-if="caseData.filing_date">
+                                    <label class="text-sm font-medium text-gray-500 uppercase tracking-wide">Filing Date</label>
+                                    <p class="text-gray-800 mt-1 flex items-center">
+                                        <i data-lucide="calendar" class="w-4 h-4 mr-2 text-gray-500"></i>
+                                        [[ caseData.filing_date ]]
+                                    </p>
+                                </div>
+                                
+                                <div v-if="caseData.next_hearing_date">
+                                    <label class="text-sm font-medium text-gray-500 uppercase tracking-wide">Next Hearing</label>
+                                    <p class="text-gray-800 mt-1 flex items-center">
+                                        <i data-lucide="clock" class="w-4 h-4 mr-2 text-gray-500"></i>
+                                        [[ caseData.next_hearing_date ]]
+                                    </p>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <!-- Status Badge -->
+                        <div class="mt-4 flex items-center justify-between">
+                            <span class="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium status-indicator"
+                                  :class="caseData.status === 'success' ? 'bg-green-100 text-green-800' : 'bg-yellow-100 text-yellow-800'">
+                                <i :data-lucide="caseData.status === 'success' ? 'check-circle' : 'clock'" 
+                                   class="w-4 h-4 mr-1"></i>
+                                [[ caseData.status === 'success' ? 'Case Found' : 'Processing' ]]
+                            </span>
+                            
+                            <span class="text-sm text-gray-500">
+                                Retrieved: [[ formatDate(caseData.query_timestamp) ]]
+                            </span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Documents Section -->
+                <div v-if="documents && documents.length > 0" class="bg-white rounded-xl shadow-lg overflow-hidden">
+                    <div class="bg-gradient-to-r from-court-gold to-yellow-500 px-6 py-4">
+                        <h3 class="text-xl font-semibold text-white flex items-center">
+                            <i data-lucide="paperclip" class="w-6 h-6 mr-2"></i>
+                            Documents & Orders
+                        </h3>
+                    </div>
+                    
+                    <div class="p-6">
+                        <div class="space-y-3">
+                            <div v-for="(doc, index) in documents" :key="doc.id || index" 
+                                 class="flex items-center justify-between p-4 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors duration-200">
+                                <div class="flex items-center space-x-3">
+                                    <div class="bg-red-100 p-2 rounded-lg">
+                                        <i data-lucide="file-text" class="w-5 h-5 text-red-600"></i>
+                                    </div>
+                                    <div>
+                                        <h4 class="font-medium text-gray-800">
+                                            [[ doc.document_title || doc.title || `Document ${index + 1}` ]]
+                                        </h4>
+                                        <p class="text-sm text-gray-500 capitalize">
+                                            [[ doc.document_type || doc.type || 'Document' ]]
+                                            <span v-if="doc.document_date || doc.date"> • [[ doc.document_date || doc.date ]]</span>
+                                        </p>
+                                    </div>
+                                </div>
+                                
+                                <div class="flex space-x-2">
+                                    <!-- Download Button -->
+                                    <button 
+                                        @click="downloadDocument(doc.id, doc.document_title || doc.title, doc.pdf_url || doc.url)"
+                                        class="btn-download bg-court-blue hover:bg-blue-700 text-white px-4 py-2 rounded-lg text-sm font-medium transition-all duration-200 flex items-center space-x-2"
+                                    >
+                                        <i data-lucide="download" class="w-4 h-4"></i>
+                                        <span>Download</span>
+                                    </button>
+                                    
+                                    <!-- View Button for direct access
+                                    <button 
+                                        @click="viewDocument(doc.pdf_url || doc.url)"
+                                        class="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg text-sm font-medium transition-all duration-200 flex items-center space-x-2"
+                                    >
+                                        <i data-lucide="external-link" class="w-4 h-4"></i>
+                                        <span>View</span>
+                                    </button> -->
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- No Documents Message -->
+                <div v-else-if="caseData" class="bg-yellow-50 border border-yellow-200 rounded-xl p-6">
+                    <div class="flex items-center">
+                        <i data-lucide="info" class="w-6 h-6 text-yellow-600 mr-3"></i>
+                        <div>
+                            <h3 class="font-medium text-yellow-800">No Documents Found</h3>
+                            <p class="text-yellow-700 mt-1">No downloadable documents are currently available for this case. This might be because:</p>
+                            <ul class="text-yellow-700 mt-2 list-disc list-inside text-sm">
+                                <li>The case is still pending and no orders have been passed</li>
+                                <li>Documents are not yet uploaded to the public portal</li>
+                                <li>The case details require verification</li>
+                            </ul>
+                            
+                            <!-- Manual link to view case details -->
+                            <div class="mt-4">
+                                <a 
+                                    :href="getManualCaseUrl()"
+                                    target="_blank"
+                                    class="inline-flex items-center px-4 py-2 bg-yellow-600 text-white text-sm rounded-lg hover:bg-yellow-700 transition-colors"
+                                >
+                                    <i data-lucide="external-link" class="w-4 h-4 mr-2"></i>
+                                    View on Official Website
+                                </a>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Recent Searches -->
+            <div v-if="searchHistory.length > 0" class="mt-12">
+                <div class="bg-white rounded-xl shadow-lg overflow-hidden">
+                    <div class="bg-gray-800 px-6 py-4">
+                        <h3 class="text-xl font-semibold text-white flex items-center">
+                            <i data-lucide="history" class="w-6 h-6 mr-2"></i>
+                            Recent Searches
+                        </h3>
+                    </div>
+                    
+                    <div class="p-6">
+                        <div class="space-y-3">
+                            <div v-for="search in searchHistory.slice(0, 5)" :key="search.id"
+                                 class="flex items-center justify-between p-4 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors duration-200">
+                                <div class="flex items-center space-x-3">
+                                    <div class="bg-gray-100 p-2 rounded-lg">
+                                        <i data-lucide="search" class="w-4 h-4 text-gray-600"></i>
+                                    </div>
+                                    <div>
+                                        <h4 class="font-medium text-gray-800">
+                                            [[ search.case_type ]] [[ search.case_number ]]/[[ search.filing_year ]]
+                                        </h4>
+                                        <p class="text-sm text-gray-500">
+                                            [[ formatDate(search.query_timestamp) ]] • 
+                                            <span :class="search.status === 'success' ? 'text-green-600' : 'text-red-600'">
+                                                [[ search.status ]]
+                                            </span>
+                                            <span v-if="search.documents_count"> • [[ search.documents_count ]] documents</span>
+                                        </p>
+                                    </div>
+                                </div>
+                                
+                                <button 
+                                    @click="loadFromHistory(search)"
+                                    class="text-court-blue hover:text-blue-700 text-sm font-medium transition-colors duration-200"
+                                >
+                                    Load
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </main>
+
+        <!-- Footer -->
+        <footer class="bg-gray-800 text-white py-8 mt-16">
+            <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+                <div class="text-center">
+                    <p class="text-gray-300">
+                        Court Data Fetcher • Built for Delhi High Court By Zynu • 
+                        <span class="text-sm">For educational and research purposes only</span>
+                    </p>
+                    <p class="text-gray-400 text-sm mt-2">
+                        Data retrieved from public court records • Please verify information independently.
+                    </p>
+                </div>
+            </div>
+        </footer>
+    </div>
+
+    <script>
+        const { createApp } = Vue;
+
+        createApp({
+            delimiters: ['[[', ']]'],
+            data() {
+                return {
+                    // API Configuration
+                    apiBaseUrl: '/api',
+                    
+                    // Form Data
+                    searchForm: {
+                        case_type: '',
+                        case_number: '',
+                        filing_year: ''
+                    },
+                    
+                    // Application State
+                    loading: false,
+                    error: null,
+                    caseTypes: [],
+                    caseData: null,
+                    documents: [],
+                    searchHistory: [],
+                    stats: null,
+                    
+                    // Available years for dropdown
+                    availableYears: this.generateYearRange(1950, new Date().getFullYear())
+                }
+            },
+            
+            async mounted() {
+                // Initialize Lucide icons
+                lucide.createIcons();
+                
+                // Load initial data
+                await this.loadCaseTypes();
+                await this.loadStats();
+                await this.loadSearchHistory();
+            },
+            
+            methods: {
+                /**
+                 * Generate array of years from start to end
+                 */
+                generateYearRange(start, end) {
+                    const years = [];
+                    for (let year = end; year >= start; year--) {
+                        years.push(year);
+                    }
+                    return years;
+                },
+                
+                /**
+                 * Load test case data
+                 */
+                loadTestCase(caseType, caseNumber, filingYear) {
+                    this.searchForm.case_type = caseType;
+                    this.searchForm.case_number = caseNumber;
+                    this.searchForm.filing_year = filingYear;
+                },
+                
+                /**
+                 * Get manual case URL for official website
+                 */
+                getManualCaseUrl() {
+                    if (!this.caseData) return '';
+                    
+                    const baseUrl = 'https://delhihighcourt.nic.in/app/get-case-type-status';
+                    return `${baseUrl}?case_type=${encodeURIComponent(this.caseData.case_type)}&case_number=${this.caseData.case_number}&case_year=${this.caseData.filing_year}`;
+                },
+                
+                /**
+                 * Load available case types from API
+                 */
+                async loadCaseTypes() {
+                    try {
+                        const response = await fetch(`${this.apiBaseUrl}/case-types`);
+                        const data = await response.json();
+                        
+                        if (data.success) {
+                            this.caseTypes = data.case_types;
+                        } else {
+                            console.warn('Failed to load case types:', data.error);
+                            // Fallback to hardcoded types
+                            this.caseTypes = [
+                                { value: 'CWP', label: 'Civil Writ Petition' },
+                                { value: 'CRL.A.', label: 'Criminal Appeal' },
+                                { value: 'CrWP', label: 'Criminal Writ Petition' },
+                                { value: 'RFA', label: 'Regular First Appeal' },
+                                { value: 'CM(M)', label: 'Civil Miscellaneous Main' },
+                                { value: 'BAIL APPLN.', label: 'Bail Application' }
+                            ];
+                        }
+                    } catch (error) {
+                        console.error('Error loading case types:', error);
+                        this.caseTypes = [
+                            { value: 'CWP', label: 'Civil Writ Petition' },
+                            { value: 'CRL.A.', label: 'Criminal Appeal' },
+                            { value: 'CrWP', label: 'Criminal Writ Petition' },
+                            { value: 'RFA', label: 'Regular First Appeal' },
+                            { value: 'BAIL APPLN.', label: 'Bail Application' }
+                        ];
+                    }
+                },
+                
+                /**
+                 * Load application statistics
+                 */
+                async loadStats() {
+                    try {
+                        const response = await fetch(`${this.apiBaseUrl}/stats`);
+                        const data = await response.json();
+                        
+                        if (data.success) {
+                            this.stats = data.stats;
+                        }
+                    } catch (error) {
+                        console.error('Error loading stats:', error);
+                    }
+                },
+                
+                /**
+                 * Load recent search history
+                 */
+                async loadSearchHistory() {
+                    try {
+                        const response = await fetch(`${this.apiBaseUrl}/history?per_page=10`);
+                        const data = await response.json();
+                        
+                        if (data.success) {
+                            this.searchHistory = data.history;
+                        }
+                    } catch (error) {
+                        console.error('Error loading search history:', error);
+                    }
+                },
+                
+                /**
+                 * Search for case data
+                 */
+                async searchCase() {
+                    // Validate form
+                    if (!this.searchForm.case_type || !this.searchForm.case_number || !this.searchForm.filing_year) {
+                        this.error = 'Please fill in all required fields';
+                        return;
+                    }
+                    
+                    this.loading = true;
+                    this.error = null;
+                    this.caseData = null;
+                    this.documents = [];
+                    
+                    try {
+                        const response = await fetch(`${this.apiBaseUrl}/search`, {
+                            method: 'POST',
+                            headers: {
+                                'Content-Type': 'application/json'
+                            },
+                            body: JSON.stringify(this.searchForm)
+                        });
+                        
+                        const data = await response.json();
+                        
+                        if (data.success) {
+                            this.caseData = data.case_data;
+                            this.documents = data.documents || [];
+                            
+                            // Refresh stats and history
+                            await this.loadStats();
+                            await this.loadSearchHistory();
+                            
+                            // Show success message if cached
+                            if (data.cached) {
+                                this.showToast('Data retrieved from cache', 'info');
+                            } else {
+                                this.showToast('Case data fetched successfully', 'success');
+                            }
+                        } else {
+                            this.error = data.message || 'Failed to search case data';
+                        }
+                    } catch (error) {
+                        console.error('Search error:', error);
+                        this.error = 'Network error occurred. Please check your connection and try again.';
+                    } finally {
+                        this.loading = false;
+                    }
+                },
+                
+        
+                /* Download document by ID or direct URL - UPDATED VERSION */
+                /* Updated downloadDocument function - replace the existing one in your Vue.js code */
+                async downloadDocument(documentId, title, directUrl = null) {
+                    try {
+                        // Show loading state
+                        this.showToast('Preparing document download...', 'info');
+                        
+                        // Debug logging
+                        console.log('Download request:', { documentId, title, directUrl });
+                        
+                        // If directUrl contains showlogo and .pdf, it's a direct PDF link
+                        if (directUrl && directUrl.includes('showlogo') && directUrl.includes('.pdf')) {
+                            console.log('Opening direct PDF URL:', directUrl);
+                            window.open(directUrl, '_blank');
+                            this.showToast('Document opened in new tab', 'success');
+                            return;
+                        }
+                        
+                        // If directUrl is a case details page, try to extract PDF from it
+                        if (directUrl && directUrl.includes('case-type-status-details')) {
+                            console.log('Extracting PDF from case details page:', directUrl);
+                            try {
+                                const response = await fetch(`${this.apiBaseUrl}/extract-pdf-url`, {
+                                    method: 'POST',
+                                    headers: {
+                                        'Content-Type': 'application/json'
+                                    },
+                                    body: JSON.stringify({
+                                        case_details_url: directUrl
+                                    })
+                                });
+                                
+                                if (response.ok) {
+                                    const data = await response.json();
+                                    console.log('PDF extraction response:', data);
+                                    if (data.success && data.pdf_url) {
+                                        console.log('Opening extracted PDF URL:', data.pdf_url);
+                                        window.open(data.pdf_url, '_blank');
+                                        this.showToast('Document opened in new tab', 'success');
+                                        return;
+                                    }
+                                }
+                                
+                                console.log('PDF extraction failed, opening case details page');
+                                // Fall back to opening the case details page
+                                window.open(directUrl, '_blank');
+                                this.showToast('Case details page opened - look for PDF links in the table', 'info');
+                                return;
+                                
+                            } catch (error) {
+                                console.error('Error extracting PDF URL:', error);
+                                // Fall back to opening the case details page
+                                window.open(directUrl, '_blank');
+                                this.showToast('Case details page opened', 'info');
+                                return;
+                            }
+                        }
+                        
+                        // Handle database document ID
+                        if (documentId) {
+                            console.log('Fetching document by ID:', documentId);
+                            const response = await fetch(`${this.apiBaseUrl}/download/${documentId}`);
+                            
+                            if (response.ok) {
+                                const data = await response.json();
+                                console.log('Download response:', data);
+                                if (data.success && data.download_url) {
+                                    console.log('Opening download URL:', data.download_url);
+                                    window.open(data.download_url, '_blank');
+                                    this.showToast('Document opened in new tab', 'success');
+                                } else {
+                                    console.error('Download failed:', data);
+                                    this.error = data.message || 'Failed to get download URL';
+                                    this.showToast('Failed to get document URL', 'error');
+                                }
+                            } else {
+                                const errorData = await response.json();
+                                console.error('Download request failed:', errorData);
+                                this.error = errorData.message || 'Failed to download document';
+                                this.showToast('Download failed', 'error');
+                            }
+                        } else {
+                            // If no documentId and directUrl doesn't work, show error
+                            console.error('No valid document URL available');
+                            this.error = 'No valid document URL available';
+                            this.showToast('No document URL available', 'error');
+                        }
+                                        
+                    } catch (error) {
+                        console.error('Download error:', error);
+                        this.error = 'Failed to download document. Please try again.';
+                        this.showToast('Download error occurred', 'error');
+                    }
+                },
+                /**
+                 * View document in new tab
+                 */
+                viewDocument(url) {
+                    if (url) {
+                        window.open(url, '_blank');
+                        this.showToast('Document opened in new tab', 'info');
+                    } else {
+                        this.showToast('Document URL not available', 'error');
+                    }
+                },
+                
+                /**
+                 * Load data from search history
+                 */
+                loadFromHistory(historyItem) {
+                    this.searchForm.case_type = historyItem.case_type;
+                    this.searchForm.case_number = historyItem.case_number;
+                    this.searchForm.filing_year = historyItem.filing_year;
+                    
+                    // Scroll to search form
+                    document.querySelector('form').scrollIntoView({ 
+                        behavior: 'smooth', 
+                        block: 'center' 
+                    });
+                },
+                
+                /**
+                 * Format date for display
+                 */
+                formatDate(dateString) {
+                    if (!dateString) return 'Unknown';
+                    
+                    try {
+                        const date = new Date(dateString);
+                        return date.toLocaleDateString('en-IN', {
+                            year: 'numeric',
+                            month: 'short',
+                            day: 'numeric',
+                            hour: '2-digit',
+                            minute: '2-digit'
+                        });
+                    } catch (error) {
+                        return dateString;
+                    }
+                },
+                
+                /**
+                 * Show toast notification (enhanced with better styling)
+                 */
+                showToast(message, type = 'info') {
+                    // Create toast element
+                    const toast = document.createElement('div');
+                    toast.className = `toast fixed top-4 right-4 z-50 px-6 py-3 rounded-lg text-white font-medium animate-fade-in max-w-sm ${
+                        type === 'success' ? 'bg-green-500' : 
+                        type === 'error' ? 'bg-red-500' : 
+                        type === 'info' ? 'bg-blue-500' : 'bg-gray-500'
+                    }`;
+                    
+                    // Add icon based on type
+                    const iconMap = {
+                        'success': 'check-circle',
+                        'error': 'alert-circle',
+                        'info': 'info',
+                        'warning': 'alert-triangle'
+                    };
+                    
+                    toast.innerHTML = `
+                        <div class="flex items-center space-x-2">
+                            <i data-lucide="${iconMap[type] || 'info'}" class="w-5 h-5"></i>
+                            <span>${message}</span>
+                        </div>
+                    `;
+                    
+                    document.body.appendChild(toast);
+                    
+                    // Initialize Lucide icons for the toast
+                    lucide.createIcons();
+                    
+                    // Remove after 4 seconds
+                    setTimeout(() => {
+                        toast.style.opacity = '0';
+                        toast.style.transform = 'translateX(100%)';
+                        setTimeout(() => {
+                            if (document.body.contains(toast)) {
+                                document.body.removeChild(toast);
+                            }
+                        }, 300);
+                    }, 4000);
+                },
+                
+                /**
+                 * Clear search form
+                 */
+                clearForm() {
+                    this.searchForm = {
+                        case_type: '',
+                        case_number: '',
+                        filing_year: ''
+                    };
+                    this.caseData = null;
+                    this.documents = [];
+                    this.error = null;
+                }
+            },
+            
+            computed: {
+                /**
+                 * Check if search form is valid
+                 */
+                isFormValid() {
+                    return this.searchForm.case_type && 
+                           this.searchForm.case_number && 
+                           this.searchForm.filing_year;
+                }
+            },
+            
+            watch: {
+                /**
+                 * Clear error when form changes
+                 */
+                searchForm: {
+                    handler() {
+                        if (this.error) {
+                            this.error = null;
+                        }
+                    },
+                    deep: true
+                }
+            }
+        }).mount('#app');
+    </script>
+</body>
+</html>
